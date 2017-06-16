@@ -1,9 +1,24 @@
 # tlibpng
 A simple png decoder for practice. 
 
-It would decode a png file to a RGBA array, and then display it via [SDL2 lib](https://www.libsdl.org/). 
+It would receive a png file path through shell parameter, decode it to a RGBA array, and then display it via [SDL2 lib](https://www.libsdl.org/). 
+
+## Usage
+
+```
+mkdir build
+cd build
+cmake ..
+make
+cd bin
+./png_decoder PNGFILEPATH
+```
 
 ## References
+
+[PNG Specification](https://www.w3.org/TR/PNG/#12Compression)
+
+[Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics)
 
 [Beginning Game Programming v2.0](http://lazyfoo.net/tutorials/SDL/index.php)
 

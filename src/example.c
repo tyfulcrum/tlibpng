@@ -32,23 +32,27 @@ void CleanUp(void) {
 int main(int argc, char *argv[]) {
 
   if (NULL == argv[1]) {
-    puts("You must give the png file path as shell parameter!");
+    fprintf(stderr, "You must give the png file path as shell parameter!\n");
     exit(EXIT_SUCCESS);
   }
   char *pic_path = argv[1];
-  png_content = DecodePng(pic_path);
+
+  if (false == DecodePng(pic_path, &png_content)) {
+    CleanUp();
+  }
+
   int width = png_content.pic_width;
   int height = png_content.pic_height;
   int n_of_pixels = width * height;
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    printf("SDL_Init error: %s\n", SDL_GetError());
+    fprintf(stderr, "SDL_Init error: %s\n", SDL_GetError());
     CleanUp();
   }
 
   pixel_buf = malloc(width * height * sizeof(Uint32));
   if (NULL == pixel_buf) {
-    puts("Failed to allocate buffer for pixels.");
+    fprintf(stderr, "Failed to allocate buffer for pixels.\n");
     CleanUp();
   }
 
@@ -56,19 +60,19 @@ int main(int argc, char *argv[]) {
       "tlibpng", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
       width, height, 0);
   if (NULL == window) {
-    printf("Failed to create window: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to create window: %s\n", SDL_GetError());
     CleanUp();
   }
 
   format = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
   if (NULL == format) {
-    printf("Failed to alloc pixel format: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to alloc pixel format: %s\n", SDL_GetError());
     CleanUp();
   }
 
   renderer = SDL_CreateRenderer(window, -1, 0);
   if (NULL == renderer) {
-    printf("Failed to created renderer: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to created renderer: %s\n", SDL_GetError());
     CleanUp();
   }
 
@@ -78,7 +82,7 @@ int main(int argc, char *argv[]) {
       renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 
       width, height);
   if (NULL == texture) {
-    printf("Failed to create screen texture: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to create screen texture: %s\n", SDL_GetError());
     CleanUp();
   }
 
@@ -91,12 +95,12 @@ int main(int argc, char *argv[]) {
 
   SDL_UpdateTexture(texture, NULL, pixel_buf, width * sizeof(Uint32));
   if (0 != SDL_RenderClear(renderer)) {
-    printf("Failed to clear renderer: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to clear renderer: %s\n", SDL_GetError());
     CleanUp();
   }
 
   if (0 !=SDL_RenderCopy(renderer, texture, NULL, NULL)) {
-    printf("Failed to blit surface: %s\n", SDL_GetError());
+    fprintf(stderr, "Failed to blit surface: %s\n", SDL_GetError());
     CleanUp();
   }
 
