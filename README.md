@@ -16,7 +16,7 @@ cd bin
 
 ## References
 
-[PNG Specification](https://www.w3.org/TR/PNG/#12Compression)
+[PNG Specification](https://www.w3.org/TR/PNG/)
 
 [Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics)
 
