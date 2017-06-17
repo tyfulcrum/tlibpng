@@ -28,8 +28,56 @@ uint32_t swap_uint32(uint32_t p) {
   return (p << 16) | (p >> 16);
 }
 
+/* Table of CRCs of all 8-bit messages. */
+unsigned long crc_table[256];
+
+/* Flag: has the table been computed? Initially false. */
+int crc_table_computed = 0;
+
+/* Make the table for a fast CRC. */
+void make_crc_table(void) {
+  unsigned long c;
+  int n, k;
+
+  for (n = 0; n < 256; n++) {
+    c = (unsigned long) n;
+    for (k = 0; k < 8; k++) {
+      if (c & 1)
+        c = 0xedb88320L ^ (c >> 1);
+      else
+        c = c >> 1;
+    }
+    crc_table[n] = c;
+  }
+  crc_table_computed = 1;
+}
+
+/* Update a running CRC with the bytes buf[0..len-1]--the CRC
+ *       should be initialized to all 1's, and the transmitted value
+ *             is the 1's complement of the final running CRC (see the
+ *                   crc() routine below). */
+
+unsigned long update_crc(unsigned long crc, unsigned char *buf,
+    int len) {
+  unsigned long c = crc;
+  int n;
+
+  if (!crc_table_computed)
+    make_crc_table();
+  for (n = 0; n < len; n++) {
+    c = crc_table[(c ^ buf[n]) & 0xff] ^ (c >> 8);
+  }
+  return c;
+}
+
+/* Return the CRC of the bytes buf[0..len-1]. */
+unsigned long crc(unsigned char *buf, int len) {
+  return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
+}
+
 bool DecodePng(char *file_path, PngContent *png_content) {
   int i = 0; /* iterator */
+  const int chunk_type_length = 4;
   FILE *file_ptr = NULL;
   uint8_t *binary_buffer = NULL; /* global pointer to file content */
   check(file_path, "You must give the png file path as shell parameter!\n");
@@ -63,6 +111,14 @@ bool DecodePng(char *file_path, PngContent *png_content) {
         "IHDR Image header doesn't exist!");
 
   uint8_t *ihdr_data_ptr = &ihdr_ptr[8];
+  /* Check CRC Value */
+  uint32_t crc_caled_value = crc(&ihdr_ptr[4], chunk_type_length+ihdr_length);
+  uint8_t *crc_ptr = &ihdr_data_ptr[ihdr_length];
+  uint32_t crc_value = ((uint32_t*)crc_ptr)[0];
+  crc_value = swap_uint32(crc_value);
+  log_info("caled: %x crc: %x", crc_caled_value, crc_value);
+  check(crc_caled_value == crc_value, "IHDR chuck CRC value wrong!");
+  /* Read chunk data */
   uint32_t width  = ((uint32_t*) ihdr_data_ptr)[0];
   uint32_t height = ((uint32_t*) ihdr_data_ptr)[1];
   width = swap_uint32(width);
