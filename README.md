@@ -20,6 +20,8 @@ cd bin
 
 [Wikipedia](https://en.wikipedia.org/wiki/Portable_Network_Graphics)
 
+[刘颖东. 揭秘数据解密的关键技术[M]. 人民邮电出版社, 2009.](https://book.douban.com/subject/3629800/)
+
 [Beginning Game Programming v2.0](http://lazyfoo.net/tutorials/SDL/index.php)
 
 [sdl2-maprgb-test](https://github.com/cxong/sdl2-maprgb-test)
