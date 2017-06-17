@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <stdarg.h>
+#include <zlib.h>
 
 bool CheckType(uint8_t *buffer, int length, ...) {
   va_list ap;
@@ -75,6 +76,22 @@ unsigned long crc(unsigned char *buf, int len) {
   return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
 }
 
+uint32_t GetChunkLength(uint8_t *chunk_ptr) {
+  uint32_t chunk_length = ((uint32_t*) chunk_ptr)[0];
+  chunk_length = swap_uint32(chunk_length);
+  return chunk_length;
+}
+
+bool CheckCRC(uint8_t *chunk_ptr) {
+  uint32_t chunk_length = GetChunkLength(chunk_ptr);
+  uint32_t crc_caled_value = crc(&chunk_ptr[4], 4+chunk_length);
+  uint8_t *crc_ptr = &chunk_ptr[8+chunk_length];
+  uint32_t crc_value = ((uint32_t*)crc_ptr)[0];
+  crc_value = swap_uint32(crc_value);
+  log_info("Calculated CRC: %x CRC in file: %x", crc_caled_value, crc_value);
+  return crc_caled_value == crc_value;
+}
+
 bool DecodePng(char *file_path, PngContent *png_content) {
   int i = 0; /* iterator */
   const int chunk_type_length = 4;
@@ -103,21 +120,14 @@ bool DecodePng(char *file_path, PngContent *png_content) {
 
   /* Read IHDR chunk */
   uint8_t *ihdr_ptr = &binary_buffer[8];
-  uint32_t ihdr_length = ((uint32_t*) ihdr_ptr)[0];
-  ihdr_length = swap_uint32(ihdr_length);
-  log_info("IHDR length: %x", ihdr_length);
-  
   check(CheckType(&ihdr_ptr[4], 4, 73, 72, 68, 82), 
         "IHDR Image header doesn't exist!");
-
+  uint32_t ihdr_length = GetChunkLength(ihdr_ptr);
+  log_info("IHDR length: %x", ihdr_length);
+  
   uint8_t *ihdr_data_ptr = &ihdr_ptr[8];
   /* Check CRC Value */
-  uint32_t crc_caled_value = crc(&ihdr_ptr[4], chunk_type_length+ihdr_length);
-  uint8_t *crc_ptr = &ihdr_data_ptr[ihdr_length];
-  uint32_t crc_value = ((uint32_t*)crc_ptr)[0];
-  crc_value = swap_uint32(crc_value);
-  log_info("caled: %x crc: %x", crc_caled_value, crc_value);
-  check(crc_caled_value == crc_value, "IHDR chuck CRC value wrong!");
+  check(CheckCRC(ihdr_ptr), "CRC of IHDR chunk error!");
   /* Read chunk data */
   uint32_t width  = ((uint32_t*) ihdr_data_ptr)[0];
   uint32_t height = ((uint32_t*) ihdr_data_ptr)[1];
@@ -136,6 +146,28 @@ bool DecodePng(char *file_path, PngContent *png_content) {
   log_info("interlace method: %d", interlace_method);
   png_content->pic_width = width;
   png_content->pic_height = height;
+
+
+  uint8_t *next_chunk_ptr = &ihdr_ptr[ihdr_length+12];
+  for(;;) {
+    uint32_t next_chunk_length = ((uint32_t*) next_chunk_ptr)[0];
+    next_chunk_length = swap_uint32(next_chunk_length);
+    uint8_t *next_chunk_type = &next_chunk_ptr[4];
+    log_info("========================================");
+    log_info("Next chunk type: %d %d %d %d", next_chunk_ptr[4], 
+        next_chunk_ptr[5], next_chunk_ptr[6], next_chunk_ptr[7]);
+    log_info("Next chunk length: %d", next_chunk_length);
+    if(CheckType(next_chunk_type, 4, 73, 68, 65, 84)) {
+      uint32_t idat_length = next_chunk_length;
+      uint8_t *idat_data_ptr = &next_chunk_ptr[8];
+
+    }
+    if(CheckType(next_chunk_type, 4, 73, 69, 78, 68)) {
+      break;
+    }
+    next_chunk_ptr = &next_chunk_ptr[12+next_chunk_length];
+  }
+
   //png_content->rgba_pixel_array = malloc(width * height * sizeof(uint32_t));
 
   free(binary_buffer);
