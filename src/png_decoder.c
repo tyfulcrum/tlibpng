@@ -8,6 +8,13 @@
 #include <stdarg.h>
 #include <zlib.h>
 
+static const int32_t buffer_size =  52428800;
+static const int8_t png_sign_length = 8;
+static const int8_t length_field_length = 4;
+static const int8_t type_field_length = 4;
+static const int8_t crc_field_length = 4;
+static const int8_t except_data_length = 12;
+
 bool CheckType(uint8_t *buffer, int length, ...) {
   va_list ap;
   va_start(ap, length);
@@ -84,17 +91,25 @@ uint32_t GetChunkLength(uint8_t *chunk_ptr) {
 
 bool CheckCRC(uint8_t *chunk_ptr) {
   uint32_t chunk_length = GetChunkLength(chunk_ptr);
-  uint32_t crc_caled_value = crc(&chunk_ptr[4], 4+chunk_length);
-  uint8_t *crc_ptr = &chunk_ptr[8+chunk_length];
+  uint32_t crc_caled_value = crc(&chunk_ptr[length_field_length], 
+      type_field_length+chunk_length);
+  uint8_t *crc_ptr = &chunk_ptr[length_field_length+type_field_length+chunk_length];
   uint32_t crc_value = ((uint32_t*)crc_ptr)[0];
   crc_value = swap_uint32(crc_value);
   log_info("Calculated CRC: %x CRC in file: %x", crc_caled_value, crc_value);
   return crc_caled_value == crc_value;
 }
 
+bool DecodeIDAT(uint8_t *chunk_ptr, uint32_t *rgba_pixel_array) {
+  check(CheckCRC(chunk_ptr), "IDAT CRC error!");
+  uint32_t idat_data_field_length = GetChunkLength(chunk_ptr);
+
+  return true;
+error:
+  return false;
+}
 bool DecodePng(char *file_path, PngContent *png_content) {
   int i = 0; /* iterator */
-  const int chunk_type_length = 4;
   FILE *file_ptr = NULL;
   uint8_t *binary_buffer = NULL; /* global pointer to file content */
   check(file_path, "You must give the png file path as shell parameter!\n");
@@ -119,13 +134,13 @@ bool DecodePng(char *file_path, PngContent *png_content) {
   puts("This is a PNG file!\n");
 
   /* Read IHDR chunk */
-  uint8_t *ihdr_ptr = &binary_buffer[8];
-  check(CheckType(&ihdr_ptr[4], 4, 73, 72, 68, 82), 
+  uint8_t *ihdr_ptr = &binary_buffer[png_sign_length];
+  check(CheckType(&ihdr_ptr[length_field_length], 4, 73, 72, 68, 82), 
         "IHDR Image header doesn't exist!");
-  uint32_t ihdr_length = GetChunkLength(ihdr_ptr);
-  log_info("IHDR length: %x", ihdr_length);
+  uint32_t ihdr_data_field_length = GetChunkLength(ihdr_ptr);
+  log_info("IHDR Data field length: %x", ihdr_data_field_length);
   
-  uint8_t *ihdr_data_ptr = &ihdr_ptr[8];
+  uint8_t *ihdr_data_ptr = &ihdr_ptr[length_field_length+type_field_length];
   /* Check CRC Value */
   check(CheckCRC(ihdr_ptr), "CRC of IHDR chunk error!");
   /* Read chunk data */
@@ -146,29 +161,28 @@ bool DecodePng(char *file_path, PngContent *png_content) {
   log_info("interlace method: %d", interlace_method);
   png_content->pic_width = width;
   png_content->pic_height = height;
+  png_content->rgba_pixel_array = malloc(width * height * sizeof(uint32_t));
+  check(png_content->rgba_pixel_array, "RGBA array alloc failed!");
 
-
-  uint8_t *next_chunk_ptr = &ihdr_ptr[ihdr_length+12];
+  uint8_t *next_chunk_ptr = &ihdr_ptr[ihdr_data_field_length+12];
   for(;;) {
-    uint32_t next_chunk_length = ((uint32_t*) next_chunk_ptr)[0];
-    next_chunk_length = swap_uint32(next_chunk_length);
-    uint8_t *next_chunk_type = &next_chunk_ptr[4];
+    uint32_t next_chunk_data_length = GetChunkLength(next_chunk_ptr);
+    uint8_t *next_chunk_type = &next_chunk_ptr[length_field_length];
     log_info("========================================");
     log_info("Next chunk type: %d %d %d %d", next_chunk_ptr[4], 
         next_chunk_ptr[5], next_chunk_ptr[6], next_chunk_ptr[7]);
-    log_info("Next chunk length: %d", next_chunk_length);
+    log_info("Next chunk data field length: %d", next_chunk_data_length);
     if(CheckType(next_chunk_type, 4, 73, 68, 65, 84)) {
-      uint32_t idat_length = next_chunk_length;
-      uint8_t *idat_data_ptr = &next_chunk_ptr[8];
-
+      /* Counter IDAT chunk */
+      check(DecodeIDAT(next_chunk_ptr, png_content->rgba_pixel_array), 
+          "Decoding IDAT failed!");
     }
     if(CheckType(next_chunk_type, 4, 73, 69, 78, 68)) {
       break;
     }
-    next_chunk_ptr = &next_chunk_ptr[12+next_chunk_length];
+    next_chunk_ptr = &next_chunk_ptr[except_data_length+next_chunk_data_length];
   }
 
-  //png_content->rgba_pixel_array = malloc(width * height * sizeof(uint32_t));
 
   free(binary_buffer);
   fclose(file_ptr);
