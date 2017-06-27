@@ -15,7 +15,7 @@ static const int8_t type_field_length = 4;
 static const int8_t crc_field_length = 4;
 static const int8_t except_data_length = 12;
 
-bool CheckType(uint8_t *buffer, int length, ...) {
+bool CheckType(uint8_t const *buffer, int length, ...) {
   va_list ap;
   va_start(ap, length);
   int i = 0;
@@ -83,13 +83,13 @@ unsigned long crc(unsigned char *buf, int len) {
   return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
 }
 
-uint32_t GetChunkLength(uint8_t *chunk_ptr) {
+uint32_t GetChunkLength(uint8_t const *chunk_ptr) {
   uint32_t chunk_length = ((uint32_t*) chunk_ptr)[0];
   chunk_length = swap_uint32(chunk_length);
   return chunk_length;
 }
 
-bool CheckCRC(uint8_t *chunk_ptr) {
+bool CheckCRC(uint8_t const *chunk_ptr) {
   uint32_t chunk_length = GetChunkLength(chunk_ptr);
   uint32_t crc_caled_value = crc(&chunk_ptr[length_field_length], 
       type_field_length+chunk_length);
@@ -100,15 +100,16 @@ bool CheckCRC(uint8_t *chunk_ptr) {
   return crc_caled_value == crc_value;
 }
 
-bool DecodeIDAT(uint8_t *chunk_ptr, uint32_t *rgba_pixel_array) {
+bool DecodeIDAT(uint8_t const *chunk_ptr, uint32_t *rgba_pixel_array) {
   check(CheckCRC(chunk_ptr), "IDAT CRC error!");
   uint32_t idat_data_field_length = GetChunkLength(chunk_ptr);
+  log_info("IDAT data length: %d", idat_data_field_length);
 
   return true;
 error:
   return false;
 }
-bool DecodePng(char *file_path, PngContent *png_content) {
+bool DecodePng(char const *file_path, PngContent *png_content) {
   int i = 0; /* iterator */
   FILE *file_ptr = NULL;
   uint8_t *binary_buffer = NULL; /* global pointer to file content */

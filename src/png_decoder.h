@@ -9,6 +9,6 @@ typedef struct PngContent {
   uint32_t *rgba_pixel_array;
 } PngContent;
 
-bool DecodePng(char *file_path, PngContent *png_content);
+bool DecodePng(char const *file_path, PngContent *png_content);
 
 #endif
